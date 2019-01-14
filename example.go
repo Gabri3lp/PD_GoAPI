@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -29,22 +27,39 @@ type QueryResponse struct {
 	Items []Page
 }
 
+type Class struct {
+	Computers float64
+	Arts      float64
+}
 type DandelionResponse struct {
-	Categories []struct {
+	/* Categories []struct {
 		Name string
+	} */
+	Classification []struct {
+		ClassName string
+		p         float32
 	}
 }
 
-var myClient = &http.Client{Timeout: 10 * time.Second}
+var myClient = &http.Client{Timeout: 10 * time.Second} /*
 var razorApiKey = "df4d80ec6288fb07545c3e6019e173e9d145be52521f0fecdc2b72d7"
-var razorURL = "http://api.textrazor.com"
+var razorURL = "http://api.textrazor.com" */
+/*
+const DANDELION_API = "https://api.dandelion.eu/datatxt/cl/v1/"
+const DANDELION_API_KEY = "f59db31a4ebc49648f6a249c82607ee3"
+const DANDELION_API_MODEL = "54cf2e1c-e48a-4c14-bb96-31dc11f84eac"  */
 
-var DANDELION_API = "https://api.dandelion.eu/datatxt/cl/v1/"
-var dandelionKey = "1f6500b2dd3347c7b9004cebd5c93e58"
-var dandelionModel = "54cf2e1c-e48a-4c14-bb96-31dc11f84eac"
+const GOOGLE_API_URL = "https://www.googleapis.com/customsearch/v1"
+const GOOGLE_API_KEY = "AIzaSyCbF2sNyXVkLMVN_5T0yWaFNAUYTdhUz-8"
+const GOOGLE_API_CX = "001983809218396823816:rnaroujms5e"
+const FILTER_CATEGORY = "technology"
+
+const DANDELION_API = "https://api.uclassify.com/v1/uClassify/Topics/classify/"
+
+var apiURL = "https://www.googleapis.com/customsearch/v1?key=AIzaSyCbF2sNyXVkLMVN_5T0yWaFNAUYTdhUz-8&cx=001983809218396823816:rnaroujms5e&q=QUERY"
 
 func main() {
-	var apiURL = "https://www.googleapis.com/customsearch/v1?key=AIzaSyCbF2sNyXVkLMVN_5T0yWaFNAUYTdhUz-8&cx=001983809218396823816:rnaroujms5e&q=QUERY"
+
 	db, err := sql.Open("mysql", "root@tcp(localhost:3306)/dist")
 	if err != nil {
 		panic(err.Error())
@@ -53,8 +68,15 @@ func main() {
 	r := gin.New()
 	r.Use(CORSMiddleware())
 	r.GET("/web/:query", func(c *gin.Context) {
+		req, _ := http.NewRequest("GET", GOOGLE_API_URL, nil)
+		q := req.URL.Query()
+		q.Set("key", GOOGLE_API_KEY)
+		q.Add("cx", GOOGLE_API_CX)
+		q.Add("fields", "items(title,snippet,link)")
+		q.Add("q", c.Param("query"))
+		req.URL.RawQuery = q.Encode()
 		response := new(QueryResponse)
-		getJSON(strings.Replace(apiURL, "QUERY", c.Param("query"), 1), response)
+		getJSON(req, response)
 		result := new(QueryResponse)
 		for _, page := range response.Items {
 			categories := getCategory(page.Snippet)
@@ -65,12 +87,29 @@ func main() {
 		}
 		checkHighlight(c.Param("query"), result, db)
 		c.JSON(200, result.Items)
+
 	})
 	r.GET("/images/:query", func(c *gin.Context) {
+		req, _ := http.NewRequest("GET", GOOGLE_API_URL, nil)
+		q := req.URL.Query()
+		q.Set("key", GOOGLE_API_KEY)
+		q.Add("cx", GOOGLE_API_CX)
+		q.Add("fields", "items(title,snippet,link)")
+		q.Add("searchType", "image")
+		q.Add("q", c.Param("query"))
+		req.URL.RawQuery = q.Encode()
 		response := new(QueryResponse)
-		getJSON(strings.Replace(apiURL, "QUERY", c.Param("query"), 1), response)
-		checkHighlight(c.Param("query"), response, db)
-		c.JSON(200, response.Items)
+		getJSON(req, response)
+		result := new(QueryResponse)
+		for _, page := range response.Items {
+			categories := getCategory(page.Snippet)
+			if categories == FILTER_CATEGORY {
+				result.Items = append(result.Items, page)
+				fmt.Println(page.Snippet)
+			}
+		}
+		checkHighlight(c.Param("query"), result, db)
+		c.JSON(200, result.Items)
 	})
 	r.GET("/highlight", func(c *gin.Context) {
 		highlight(c, db)
@@ -106,30 +145,39 @@ func getCategory(text string) string {
 	return response.Response.CoarseTopics[0].Label */
 	//response := new(DandelionResponse)
 	req, err := http.NewRequest("GET", DANDELION_API, nil)
-	q := req.URL.Query()
-	//q.Add("url", url.QueryEscape(text))
-	q.Set("link", url.QueryEscape(text))
-	q.Add("model", dandelionModel)
-	q.Add("token", dandelionKey)
+	q := req.URL.Query() /*
+		q.Set("text", url.QueryEscape(text))
+		q.Add("model", DANDELION_API_MODEL)
+		q.Add("token", DANDELION_API_KEY) */
+
+	q.Add("readKey", "V4lj4kATr316")
+	q.Add("text", text)
+
 	req.URL.RawQuery = q.Encode()
-	fmt.Println("URL: " + req.URL.RawQuery)
 	resp, err := myClient.Do(req)
 	if err != nil || resp == nil {
 		return ""
 	}
-	response := new(DandelionResponse)
+	response := new(Class)
 	err = json.NewDecoder(resp.Body).Decode(response)
 	if err != nil {
+		fmt.Println(err)
 		return ""
 	}
 	resp.Body.Close()
-	if len(response.Categories) == 0 {
+	/* 	if len(r) == 0 {
 		fmt.Println("Sin categoria")
 		fmt.Println("Snippet: " + text)
 		return ""
+	} */
+
+	//return response.Categories[0].Name
+	fmt.Println(response.Arts)
+	if response.Computers >= 0.5 {
+
+		return FILTER_CATEGORY
 	}
-	fmt.Println(response.Categories[0].Name)
-	return response.Categories[0].Name
+	return ""
 	/* url := strings.Replace(DANDELION_API, "TEXT", text, 1)
 	url = strings.Replace(url, " ", "+", -1)
 	url = strings.Replace(url, "/n", "+", -1)
@@ -207,11 +255,11 @@ func CORSMiddleware() gin.HandlerFunc {
 	}
 }
 
-func getJSON(url string, target interface{}) error {
-	r, err := myClient.Get(url)
+func getJSON(r *http.Request, target interface{}) error {
+	resp, err := myClient.Do(r)
 	if err != nil {
 		return err
 	}
-	defer r.Body.Close()
-	return json.NewDecoder(r.Body).Decode(target)
+	defer resp.Body.Close()
+	return json.NewDecoder(resp.Body).Decode(target)
 }
