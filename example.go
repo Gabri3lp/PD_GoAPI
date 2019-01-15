@@ -27,34 +27,20 @@ type QueryResponse struct {
 	Items []Page
 }
 
-type Class struct {
+type UClassifyResponse struct {
 	Computers float64
 	Arts      float64
 }
-type DandelionResponse struct {
-	/* Categories []struct {
-		Name string
-	} */
-	Classification []struct {
-		ClassName string
-		p         float32
-	}
-}
 
-var myClient = &http.Client{Timeout: 10 * time.Second} /*
-var razorApiKey = "df4d80ec6288fb07545c3e6019e173e9d145be52521f0fecdc2b72d7"
-var razorURL = "http://api.textrazor.com" */
-/*
-const DANDELION_API = "https://api.dandelion.eu/datatxt/cl/v1/"
-const DANDELION_API_KEY = "f59db31a4ebc49648f6a249c82607ee3"
-const DANDELION_API_MODEL = "54cf2e1c-e48a-4c14-bb96-31dc11f84eac"  */
+var myClient = &http.Client{Timeout: 10 * time.Second}
 
 const GOOGLE_API_URL = "https://www.googleapis.com/customsearch/v1"
-const GOOGLE_API_KEY = "AIzaSyCbF2sNyXVkLMVN_5T0yWaFNAUYTdhUz-8"
+const GOOGLE_API_KEY = "AIzaSyCy_VyBA9JVye7KnHVYS0vJxnMAutMUNAQ"
 const GOOGLE_API_CX = "001983809218396823816:rnaroujms5e"
 const FILTER_CATEGORY = "technology"
 
-const DANDELION_API = "https://api.uclassify.com/v1/uClassify/Topics/classify/"
+const UCLASSIFY_API = "https://api.uclassify.com/v1/uClassify/Topics/classify/"
+const UCLASSIFY_KEY = "C904XyojCY61"
 
 var apiURL = "https://www.googleapis.com/customsearch/v1?key=AIzaSyCbF2sNyXVkLMVN_5T0yWaFNAUYTdhUz-8&cx=001983809218396823816:rnaroujms5e&q=QUERY"
 
@@ -64,7 +50,6 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	// Initialize a new Gin router
 	r := gin.New()
 	r.Use(CORSMiddleware())
 	r.GET("/web/:query", func(c *gin.Context) {
@@ -105,7 +90,7 @@ func main() {
 			categories := getCategory(page.Snippet)
 			if categories == FILTER_CATEGORY {
 				result.Items = append(result.Items, page)
-				fmt.Println(page.Snippet)
+				fmt.Println(page.Link)
 			}
 		}
 		checkHighlight(c.Param("query"), result, db)
@@ -119,81 +104,26 @@ func main() {
 
 }
 func getCategory(text string) string {
-	/* data := url.Values{}
-	data.Set("text", text)
-	data.Add("extractors", "topics")
-	req, err := http.NewRequest("POST", razorURL, bytes.NewBufferString(data.Encode()))
-	req.Header.Set("X-TextRazor-Key", razorApiKey)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value") // This makes it work
-	if err != nil {
-		log.Println(err)
-	}
-	resp, err := myClient.Do(req)
-	if err != nil {
-		log.Println(err)
-	}
-	response := new(TextRazorResponse)
-	err = json.NewDecoder(resp.Body).Decode(response)
-	if err != nil {
-		log.Println(err)
-	}
-	if len(response.Response.CoarseTopics) == 0 {
-		fmt.Println("Sin categoria, Pagina: " + text)
-		return ""
-	}
-	fmt.Println("Category: " + response.Response.CoarseTopics[0].Label)
-	return response.Response.CoarseTopics[0].Label */
-	//response := new(DandelionResponse)
-	req, err := http.NewRequest("GET", DANDELION_API, nil)
-	q := req.URL.Query() /*
-		q.Set("text", url.QueryEscape(text))
-		q.Add("model", DANDELION_API_MODEL)
-		q.Add("token", DANDELION_API_KEY) */
-
-	q.Add("readKey", "V4lj4kATr316")
+	req, err := http.NewRequest("GET", UCLASSIFY_API, nil)
+	q := req.URL.Query()
+	q.Add("readKey", UCLASSIFY_KEY)
 	q.Add("text", text)
-
 	req.URL.RawQuery = q.Encode()
 	resp, err := myClient.Do(req)
 	if err != nil || resp == nil {
 		return ""
 	}
-	response := new(Class)
+	response := new(UClassifyResponse)
 	err = json.NewDecoder(resp.Body).Decode(response)
 	if err != nil {
 		fmt.Println(err)
 		return ""
 	}
 	resp.Body.Close()
-	/* 	if len(r) == 0 {
-		fmt.Println("Sin categoria")
-		fmt.Println("Snippet: " + text)
-		return ""
-	} */
-
-	//return response.Categories[0].Name
-	fmt.Println(response.Arts)
 	if response.Computers >= 0.5 {
-
 		return FILTER_CATEGORY
 	}
 	return ""
-	/* url := strings.Replace(DANDELION_API, "TEXT", text, 1)
-	url = strings.Replace(url, " ", "+", -1)
-	url = strings.Replace(url, "/n", "+", -1)
-	r, err := myClient.Get(url)
-	if err != nil {
-		println(err)
-	}
-	return r */
-	/* url = strings.Replace(url, " ", "+", -1)
-	url = strings.Replace(url, "/n", "+", -1)
-	getJSON(url, response) */
-	/* if len(response.Categories) == 0 {
-		return ""
-	} */
-	/*
-		return response */
 }
 func checkHighlight(query string, result *QueryResponse, db *sql.DB) {
 	for i := 0; i < len(result.Items); i++ {
